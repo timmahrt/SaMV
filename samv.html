@@ -1,0 +1,314 @@
+
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <title>Textgrid example</title>
+
+  <style type="text/css">
+    body,
+    html {
+      font-family: sans-serif;
+    }
+
+  </style>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+  <script src="lib/dygraph-combined.js"></script>
+  <script src="lib/interaction.js"></script>
+  <script src="lib/vis.min.js"></script>
+  <script src="lib/praatio.js"></script>
+  <link href="lib/vis.min.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body>
+
+
+  Textgrid:
+  <input type="file" id="tg_button" required="required" accept=".TextGrid" /> --- Datafiles:
+  <input type="file" id="data_button" required="required" accept=".csv" /> ---  Audio:
+  <input type="file" id="audio_button" required="required" accept="audio/*" /> ---
+  <button type="button" id="render_button" onclick="renderall()">Render data</button>
+
+  <div id="playaudio"></div>
+  <div id="dataplot"  style="width:1200px; height:500px;"></div>
+  <div id="textgrid" style="width:1200px"></div>
+
+  <script type="text/javascript">
+    function toDateTime(secs) {
+      var t = new Date(1970, 0, 1);
+      t = (t / 1000.0) + secs;
+      t = new Date(t * 1000);
+      return t;
+    }
+    
+    function toSeconds(datetime) {
+    	var t = new Date(1970, 0, 1);
+    	
+    }
+
+    
+    var highlightStart = 0;
+    var highlightEnd = 0;
+    var highlightTop = 10;
+    var highlightBottom = 2;
+
+    var highlightStart_sec = 0;
+    var highlightEnd_sec = 0;
+    
+    var timeline = null;
+    
+    nullMouseUpEvent = function(event, g, context) {}
+
+    function renderall() {
+    var blah = document.getElementById("tg_button").files;
+    if(blah.length > 0){
+        renderTextgrid();
+    }
+    var blah = document.getElementById("data_button").files;
+    if(blah.length > 0){
+        renderPlot();
+    }
+    var blah = document.getElementById("audio_button").files;
+    if(blah.length > 0){
+        loadAudioFile();
+    }
+    };
+
+    function renderTextgrid() {
+      var file = document.getElementById("tg_button").files[0];
+      var reader = new FileReader();
+      var link_reg = /(http:\/\/|https:\/\/)/i;
+
+      reader.onload = function(file) {
+
+        var jsonTG = readTextgrid(file.target.result);
+
+        // DOM element where the Timeline will be attached
+        var container = document.getElementById('textgrid');
+
+        var groupList = [];
+        var itemList = [];
+        var tierNameList = jsonTG['tierNameList'];
+        var tierDict = jsonTG['tierDict'];
+        var cumulativeID = 0;
+        for (groupID = 0; groupID < tierNameList.length; groupID++) {
+          var tierName = tierNameList[groupID];
+          groupList.push({
+            id: groupID,
+            content: tierName
+          });
+
+          var entryList = tierDict[tierName]['entryList'];
+
+          for (id = 0; id < entryList.length; id++) {
+            var entry = entryList[id];
+            itemList.push({
+              id: id + cumulativeID,
+              content: entry[2],
+              group: groupID,
+              start: toDateTime(entry[0]),
+              end: toDateTime(entry[1])
+            });
+          }
+          cumulativeID = cumulativeID + entryList.length;
+        }
+
+        // Create a DataSet (allows two way data-binding)
+        var groups = new vis.DataSet(groupList);
+        var items = new vis.DataSet(itemList);
+
+        // Configuration for the Timeline
+        var options = {
+          //groupOrder: 'content',
+          format: {
+            majorLabels: {
+              second: 's'
+            }
+          },
+          moveable: false,
+          //min:toDateTime(0), 
+          //max:toDateTime(15), 
+          stack: false,
+          showMinorLabels: true,
+        };
+
+        // Create a Timeline
+        timeline = new vis.Timeline(container);
+        timeline.setOptions(options);
+        timeline.setGroups(groups);
+        timeline.setItems(items);
+
+      };
+      reader.readAsText(file);
+    }
+
+    function loadAudioFile() {
+        var file = document.getElementById("audio_button").files[0];
+        var type = file.type;
+        var fileURL = URL.createObjectURL(file);
+
+        //videoNode.src = fileURL;
+        audioStr = '<audio id="audio_file" src="' + fileURL + '" preload="auto"></audio>'
+        audioButton = '<input type="button" id="play_audio_button" value="Play Audio" />'
+
+        document.getElementById('playaudio').innerHTML += audioStr + audioButton
+
+        // Audio button play function
+        $('input[id=play_audio_button]').click(function () {
+            var audioFile = document.getElementById("audio_file");
+            audioFile.currentTime = highlightStart_sec;
+            audioFile.play();
+        });
+
+    }
+
+    
+
+    
+    function renderPlot() {
+        var file = document.getElementById("data_button").files[0];
+        var reader = new FileReader();
+        var link_reg = /(http:\/\/|https:\/\/)/i;
+
+        reader.onload = function(file) {
+
+          // Copied from dygraph-interaction-mode.js but with the clearing of the selected zoom area removed
+          //Dygraph.defaultInteractionModel.mousemove = function(event, g, context) {
+
+          //} 
+
+
+          var obj1 = new Dygraph(
+            document.getElementById("dataplot"),
+            file.target.result, {
+            /*
+            	drawCallback: function(g) {
+                    var newMin = g.xAxisRange()[0]
+                    var newMax = g.xAxisRange()[1]
+                    newMin = g.toDataXCoord(newMin);
+                    newMax = g.toDataXCoord(newMax);
+                    
+                    if(timeline != null){
+                        timeline.setWindow(toDateTime(newMin), 
+                                           toDateTime(newMax));
+                      }
+                  },*/
+              labels: ["x", "A"],
+              //title: 'Daily Temperatures in New York vs. San Francisco',
+              //ylabel: 'Pitch (Hz)',
+              //legend: 'always',
+              //highlightSeriesBackgroundAlpha: 0.5,
+              //labelsDivStyles: { 'textAlign': 'right' },
+              //drawCallback: null,
+              showRangeSelector: true,
+              drawPoints: true,
+              interactionModel: Dygraph.Interaction.defaultModel,
+              //underlayCallback : captureCanvas,
+              zoomCallback: function(minX, maxX, yRanges) {
+
+              },
+              underlayCallback: function(canvas, area, g) {
+                if (highlightStart < highlightEnd) {
+                  var bottom_left = g.toDomCoords(highlightStart, highlightBottom);
+                  var top_right = g.toDomCoords(highlightEnd, highlightTop);
+
+                  var left = bottom_left[0];
+                  var right = top_right[0];
+                  
+                  // Get the time of the highlighted region in seconds
+                  highlightStart_sec = g.toDataXCoord(highlightStart)
+                  highlightEnd_sec = g.toDataXCoord(highlightEnd)
+
+                  canvas.fillStyle = "rgba(255, 255, 102, 1.0)";
+                  canvas.fillRect(left, area.y, right - left, area.h);
+                }
+              }
+            });
+
+
+          obj1.updateOptions({
+            interactionModel: {
+              mousedown: function(event, g, context) {}
+            }
+          });
+          obj1.updateOptions({
+            zoomCallback: function(minDate, maxDate, yRanges) {
+              var a = maxDate - minDate;
+            }
+          }, true);
+          //obj1.updateOptions({interactionModel: Dygraph.Interaction.defaultModel});
+
+          Dygraph.startZoom = function(event, g, context) {
+
+            highlightTop = 0;
+            highlightBottom = 0;
+            highlightStart = 0;
+            highlightEnd = 0;
+            g.clearZoomRect_();
+            context.isZooming = true;
+            context.zoomMoved = false;
+            
+            // Get the time of the highlighted region in seconds
+            highlightStart_sec = g.toDataXCoord(highlightStart)
+            highlightEnd_sec = g.toDataXCoord(highlightEnd)
+
+          };
+          
+          // Typical dygraph behavior is such that when the user highlights a region,
+          // the window is fit to the zoom area.  Instead, just highlight it.
+          Dygraph.endZoom = function(event, g, context) {
+            context.isZooming = false;
+            g.clearZoomRect_();
+            if (context.dragDirection == Dygraph.HORIZONTAL) {
+              var left = Math.min(context.dragStartX, context.dragEndX),
+                right = Math.max(context.dragStartX, context.dragEndX);
+              var top = Math.min(context.dragStartY, context.dragEndY),
+                bottom = Math.max(context.dragStartY, context.dragEndY);
+
+              highlightTop = top;
+              highlightBottom = bottom;
+              highlightStart = left;
+              highlightEnd = right;
+              
+              // Get the time of the highlighted region in seconds
+              highlightStart_sec = g.toDataXCoord(highlightStart);
+              highlightEnd_sec = g.toDataXCoord(highlightEnd);
+
+              // Zoom into the textgrid
+              var container = document.getElementById('textgrid');
+              container.setWindow(toDateTime(highlightStart_sec), toDateTime(highlightEnd_sec))
+              
+              obj1.updateOptions({
+                underlayCallback: function(canvas, area, g) {
+                  if (highlightStart < highlightEnd) {
+                    var areaInfo = g.getArea();
+                    var bottom_left = g.toDomCoords(highlightStart, highlightBottom);
+                    var top_right = g.toDomCoords(highlightEnd, highlightTop);
+
+                    var left = bottom_left[0];
+                    var right = top_right[0];
+
+                    var top = areaInfo['h'];
+                    var bottom = areaInfo['y'];
+                    var left = highlightStart;
+                    var right = highlightEnd - highlightStart;
+                    canvas.fillStyle = "rgba(255, 255, 102, 1.0)";
+                    canvas.fillRect(left, bottom, right, top);
+                  }
+                }
+              });
+            }
+          };
+          //obj1.updateOptions({});
+        };
+        reader.readAsText(file);
+      }
+      //document.getElementById('the_form').addEventListener('change', handleFileSelect, false);
+
+    //document.getElementById("render_button").addEventListener('change', handleFileSelect, false);
+
+  </script>
+
+</body>
+
+</html>
